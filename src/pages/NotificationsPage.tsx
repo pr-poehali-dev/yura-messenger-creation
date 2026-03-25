@@ -1,123 +1,90 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "@/components/ui/icon";
+import { api } from "@/lib/api";
 
-const initialNotifications = [
-  {
-    id: 1, type: "message", read: false,
-    title: "Мария Соколова",
-    text: "Встретимся в 18:00 у метро",
-    time: "2 мин назад", avatar: "М",
-  },
-  {
-    id: 2, type: "message", read: false,
-    title: "Команда проекта",
-    text: "Анна: Презентация готова, жду правок",
-    time: "15 мин назад", avatar: "К",
-  },
-  {
-    id: 3, type: "message", read: false,
-    title: "Дмитрий Орлов",
-    text: "Посмотрел файл — всё выглядит отлично 👍",
-    time: "1 час назад", avatar: "Д",
-  },
-  {
-    id: 4, type: "system", read: true,
-    title: "Безопасность",
-    text: "Ваши сообщения защищены end-to-end шифрованием",
-    time: "вчера", avatar: null,
-  },
-  {
-    id: 5, type: "message", read: true,
-    title: "Наташа Иванова",
-    text: "Спасибо за помощь! Очень выручил",
-    time: "вчера", avatar: "Н",
-  },
-  {
-    id: 6, type: "system", read: true,
-    title: "Новый контакт",
-    text: "Павел Кузнецов добавил вас в контакты",
-    time: "2 дня назад", avatar: null,
-  },
-];
+interface Notif {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+function timeAgo(date: string) {
+  const diff = Date.now() - new Date(date).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "только что";
+  if (min < 60) return `${min} мин назад`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ч назад`;
+  return `${Math.floor(h / 24)} дн назад`;
+}
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    api.getNotifications().then((d) => {
+      setNotifs(d.notifications || []);
+      setLoading(false);
+    });
+  }, []);
 
-  const markAllRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
-  };
+  const unread = notifs.filter((n) => !n.is_read).length;
 
-  const markRead = (id: number) => {
-    setNotifications(notifications.map((n) => n.id === id ? { ...n, read: true } : n));
+  const markAll = async () => {
+    await api.markRead();
+    setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="px-4 py-4 border-b border-border bg-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-semibold text-base">Уведомления</h1>
-            {unreadCount > 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">{unreadCount} непрочитанных</p>
-            )}
-          </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1 rounded-lg hover:bg-secondary"
-            >
-              Прочитать все
-            </button>
-          )}
+      <div className="px-4 py-3.5 border-b border-border bg-white flex items-center justify-between">
+        <div>
+          <h1 className="font-semibold text-base">Уведомления</h1>
+          {unread > 0 && <p className="text-xs text-muted-foreground mt-0.5">{unread} непрочитанных</p>}
         </div>
+        {unread > 0 && (
+          <button onClick={markAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-secondary">
+            Прочитать все
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto divide-y divide-border">
-        {notifications.map((n) => (
-          <div
-            key={n.id}
-            onClick={() => markRead(n.id)}
-            className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-secondary/40 ${!n.read ? "bg-secondary/20" : ""}`}
-          >
-            <div className="shrink-0 mt-0.5">
-              {n.avatar ? (
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold relative">
-                  {n.avatar}
-                  {!n.read && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-foreground rounded-full border-2 border-background"></span>
-                  )}
-                </div>
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                  <Icon name={n.type === "system" ? "Shield" : "Bell"} size={16} className="text-muted-foreground" />
-                </div>
-              )}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
+          </div>
+        ) : notifs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-8">
+            <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mb-3">
+              <Icon name="BellOff" size={20} className="text-muted-foreground" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-sm font-medium ${!n.read ? "text-foreground" : "text-foreground/80"}`}>
-                  {n.title}
-                </span>
-                <span className="text-[11px] text-muted-foreground shrink-0">{n.time}</span>
+            <p className="text-sm text-muted-foreground">Уведомлений пока нет</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {notifs.map((n) => (
+              <div key={n.id} className={`flex items-start gap-3 px-4 py-3.5 transition-colors ${!n.is_read ? "bg-secondary/30" : "hover:bg-secondary/20"}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${n.type === "message" ? "bg-secondary" : "bg-secondary"}`}>
+                  <Icon name={n.type === "message" ? "MessageCircle" : "Shield"} size={16} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{n.title}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{timeAgo(n.created_at)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                </div>
+                {!n.is_read && <div className="w-2 h-2 rounded-full bg-foreground shrink-0 mt-2" />}
               </div>
-              <p className={`text-xs mt-0.5 line-clamp-2 ${!n.read ? "text-foreground/80" : "text-muted-foreground"}`}>
-                {n.text}
-              </p>
-            </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
-
-      {unreadCount === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center mb-3">
-            <Icon name="BellOff" size={20} className="text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground">Нет непрочитанных уведомлений</p>
-        </div>
-      )}
     </div>
   );
 }

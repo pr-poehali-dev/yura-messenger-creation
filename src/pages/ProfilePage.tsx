@@ -1,34 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
+import { api } from "@/lib/api";
 
 export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState("Алексей Смирнов");
-  const [status, setStatus] = useState("На связи 🚀");
-  const [bio, setBio] = useState("Продуктовый менеджер. Люблю минимализм и чистый дизайн.");
-  const [savedName, setSavedName] = useState(name);
-  const [savedStatus, setSavedStatus] = useState(status);
-  const [savedBio, setSavedBio] = useState(bio);
+  const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
+  const [phone, setPhone] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const save = () => {
-    setSavedName(name);
-    setSavedStatus(status);
-    setSavedBio(bio);
+  useEffect(() => {
+    api.getProfile().then((d) => {
+      if (d.user) {
+        setName(d.user.display_name || "");
+        setBio(d.user.bio || "");
+        setPhone(d.user.phone || "");
+        setUsername(d.user.username || "");
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    await api.updateProfile({ display_name: name, bio, phone });
+    setSaving(false);
     setEditing(false);
   };
 
   const cancel = () => {
-    setName(savedName);
-    setStatus(savedStatus);
-    setBio(savedBio);
+    api.getProfile().then((d) => {
+      if (d.user) {
+        setName(d.user.display_name || "");
+        setBio(d.user.bio || "");
+        setPhone(d.user.phone || "");
+      }
+    });
     setEditing(false);
   };
-
-  const stats = [
-    { label: "Чатов", value: "6" },
-    { label: "Сообщений", value: "1.2k" },
-    { label: "Контактов", value: "24" },
-  ];
 
   const menuItems = [
     { icon: "Smartphone", label: "Устройства", description: "1 активное устройство" },
@@ -37,18 +48,27 @@ export default function ProfilePage() {
     { icon: "HelpCircle", label: "Помощь", description: "Центр поддержки" },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-6 h-6 border-2 border-border border-t-foreground rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
       {/* Header */}
-      <div className="px-4 py-4 border-b border-border bg-white flex items-center justify-between sticky top-0 z-10">
+      <div className="px-4 py-3.5 border-b border-border bg-white flex items-center justify-between sticky top-0 z-10">
         <h1 className="font-semibold text-base">Профиль</h1>
         <button
           onClick={() => editing ? save() : setEditing(true)}
-          className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${
+          disabled={saving}
+          className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
             editing ? "bg-foreground text-background" : "bg-secondary text-foreground hover:bg-secondary/70"
           }`}
         >
-          {editing ? "Сохранить" : "Изменить"}
+          {saving ? "Сохранение..." : editing ? "Сохранить" : "Изменить"}
         </button>
       </div>
 
@@ -57,13 +77,8 @@ export default function ProfilePage() {
         <div className="flex flex-col items-center">
           <div className="relative mb-4">
             <div className="w-20 h-20 rounded-full bg-secondary border-2 border-border flex items-center justify-center text-2xl font-semibold text-foreground">
-              А
+              {name ? name[0].toUpperCase() : "?"}
             </div>
-            {editing && (
-              <button className="absolute bottom-0 right-0 w-7 h-7 bg-foreground text-background rounded-full flex items-center justify-center border-2 border-white">
-                <Icon name="Camera" size={12} />
-              </button>
-            )}
             <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></span>
           </div>
 
@@ -73,12 +88,13 @@ export default function ProfilePage() {
                 className="w-full text-center text-lg font-semibold bg-secondary rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-foreground/20"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder="Имя..."
               />
               <input
                 className="w-full text-center text-sm bg-secondary rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-foreground/20 text-muted-foreground"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                placeholder="Статус..."
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Телефон..."
               />
               <textarea
                 className="w-full text-center text-sm bg-secondary rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-foreground/20 text-muted-foreground resize-none"
@@ -96,28 +112,16 @@ export default function ProfilePage() {
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-semibold">{savedName}</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">{savedStatus}</p>
-              <p className="text-xs text-muted-foreground mt-1.5 text-center max-w-xs">{savedBio}</p>
+              <h2 className="text-lg font-semibold">{name}</h2>
+              {phone && <p className="text-sm text-muted-foreground mt-0.5">{phone}</p>}
+              {bio && <p className="text-xs text-muted-foreground mt-1.5 text-center max-w-xs">{bio}</p>}
               <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
                 <Icon name="AtSign" size={11} />
-                <span>alexey_smirnov</span>
+                <span>{username}</span>
               </div>
             </>
           )}
         </div>
-
-        {/* Stats */}
-        {!editing && (
-          <div className="flex mt-5 divide-x divide-border border border-border rounded-xl overflow-hidden">
-            {stats.map((s) => (
-              <div key={s.label} className="flex-1 py-3 flex flex-col items-center">
-                <span className="text-base font-semibold">{s.value}</span>
-                <span className="text-[11px] text-muted-foreground">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Menu */}

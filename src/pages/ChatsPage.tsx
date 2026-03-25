@@ -1,59 +1,89 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import { api } from "@/lib/api";
 
-const chats = [
-  {
-    id: 1, name: "Мария Соколова", avatar: "М", online: true,
-    lastMessage: "Хорошо, встретимся в 18:00 у метро",
-    time: "14:32", unread: 2, encrypted: true,
-  },
-  {
-    id: 2, name: "Дмитрий Орлов", avatar: "Д", online: false,
-    lastMessage: "Посмотрел файл — всё выглядит отлично 👍",
-    time: "12:10", unread: 0, encrypted: true,
-  },
-  {
-    id: 3, name: "Команда проекта", avatar: "К", online: true,
-    lastMessage: "Анна: Презентация готова, жду правок",
-    time: "10:55", unread: 5, encrypted: true,
-  },
-  {
-    id: 4, name: "Наташа Иванова", avatar: "Н", online: false,
-    lastMessage: "Спасибо за помощь! Очень выручил",
-    time: "вчера", unread: 0, encrypted: true,
-  },
-  {
-    id: 5, name: "Сергей Морозов", avatar: "С", online: false,
-    lastMessage: "Завтра созвонимся по проекту",
-    time: "вчера", unread: 0, encrypted: true,
-  },
-  {
-    id: 6, name: "Анна Петрова", avatar: "А", online: true,
-    lastMessage: "Ок, договорились!",
-    time: "пн", unread: 0, encrypted: true,
-  },
-];
+interface Chat {
+  id: number;
+  type: string;
+  name: string;
+  avatar: string;
+  online: boolean;
+  last_message: string;
+  last_message_time: string;
+  unread: number;
+}
 
-const messages = [
-  { id: 1, from: "other", text: "Привет! Как дела?", time: "14:20" },
-  { id: 2, from: "me", text: "Привет! Отлично, спасибо. Ты как?", time: "14:22" },
-  { id: 3, from: "other", text: "Тоже хорошо. Ты не забыл про встречу сегодня?", time: "14:25" },
-  { id: 4, from: "me", text: "Нет, помню! В 18:00 у метро, верно?", time: "14:28" },
-  { id: 5, from: "other", text: "Да, именно. Захвати зонт — обещают дождь", time: "14:30" },
-  { id: 6, from: "other", text: "Хорошо, встретимся в 18:00 у метро", time: "14:32" },
-];
+interface Message {
+  id: number;
+  text: string;
+  created_at: string;
+  sender_id: number;
+  sender_name: string;
+  is_mine: boolean;
+}
+
+function formatTime(date: string) {
+  return new Date(date).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatChatTime(date: string) {
+  if (!date) return "";
+  const d = new Date(date);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 86400000 && now.getDate() === d.getDate()) return formatTime(date);
+  if (diff < 172800000) return "вчера";
+  return d.toLocaleDateString("ru", { day: "numeric", month: "short" });
+}
 
 export default function ChatsPage() {
+  const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [input, setInput] = useState("");
-  const [msgs, setMsgs] = useState(messages);
+  const [msgs, setMsgs] = useState<Message[]>([]);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.getChats().then((d) => {
+      setChats(d.chats || []);
+      setLoadingChats(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!selectedChat) return;
+    setLoadingMsgs(true);
+    api.getMessages(selectedChat).then((d) => {
+      setMsgs(d.messages || []);
+      setLoadingMsgs(false);
+    });
+  }, [selectedChat]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
 
   const chat = chats.find((c) => c.id === selectedChat);
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    setMsgs([...msgs, { id: Date.now(), from: "me", text: input, time: new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) }]);
+  const sendMessage = async () => {
+    if (!input.trim() || !selectedChat) return;
+    const text = input.trim();
     setInput("");
+    const res = await api.sendMessage(selectedChat, text);
+    const newMsg: Message = {
+      id: res.id || Date.now(),
+      text,
+      created_at: res.created_at || new Date().toISOString(),
+      sender_id: 1,
+      sender_name: "Алексей",
+      is_mine: true,
+    };
+    setMsgs((prev) => [...prev, newMsg]);
+    setChats((prev) => prev.map((c) =>
+      c.id === selectedChat ? { ...c, last_message: text, unread: 0 } : c
+    ));
   };
 
   return (
@@ -65,7 +95,11 @@ export default function ChatsPage() {
           <p className="text-xs text-muted-foreground mt-0.5">{chats.length} диалогов</p>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-border">
-          {chats.map((c) => (
+          {loadingChats ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
+            </div>
+          ) : chats.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedChat(c.id)}
@@ -83,12 +117,12 @@ export default function ChatsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate text-foreground">{c.name}</span>
-                    {c.encrypted && <Icon name="Lock" size={10} className="text-muted-foreground shrink-0" />}
+                    <Icon name="Lock" size={10} className="text-muted-foreground shrink-0" />
                   </div>
-                  <span className="text-[11px] text-muted-foreground shrink-0 ml-2">{c.time}</span>
+                  <span className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatChatTime(c.last_message_time)}</span>
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-xs text-muted-foreground truncate">{c.lastMessage}</span>
+                  <span className="text-xs text-muted-foreground truncate">{c.last_message}</span>
                   {c.unread > 0 && (
                     <span className="ml-2 bg-foreground text-background text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
                       {c.unread}
@@ -149,26 +183,31 @@ export default function ChatsPage() {
                   Сообщения защищены шифрованием
                 </span>
               </div>
-              {msgs.map((m) => (
+              {loadingMsgs ? (
+                <div className="flex items-center justify-center h-20">
+                  <div className="w-4 h-4 border-2 border-border border-t-foreground rounded-full animate-spin" />
+                </div>
+              ) : msgs.map((m) => (
                 <div
                   key={m.id}
-                  className={`flex animate-slide-up ${m.from === "me" ? "justify-end" : "justify-start"}`}
+                  className={`flex animate-slide-up ${m.is_mine ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`max-w-[72%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
-                      m.from === "me"
+                      m.is_mine
                         ? "bg-foreground text-background rounded-br-sm"
                         : "bg-white border border-border text-foreground rounded-bl-sm shadow-sm"
                     }`}
                   >
                     <p>{m.text}</p>
-                    <div className={`text-[10px] mt-1 text-right ${m.from === "me" ? "text-background/60" : "text-muted-foreground"}`}>
-                      {m.time}
-                      {m.from === "me" && <Icon name="CheckCheck" size={10} className="inline ml-1" />}
+                    <div className={`text-[10px] mt-1 text-right ${m.is_mine ? "text-background/60" : "text-muted-foreground"}`}>
+                      {formatTime(m.created_at)}
+                      {m.is_mine && <Icon name="CheckCheck" size={10} className="inline ml-1" />}
                     </div>
                   </div>
                 </div>
               ))}
+              <div ref={bottomRef} />
             </div>
 
             {/* Input */}

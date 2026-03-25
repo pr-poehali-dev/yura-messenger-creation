@@ -1,0 +1,36 @@
+{
+  "tests": [
+    {
+      "name": "Get chats list returns ok",
+      "method": "GET",
+      "path": "/?action=chats&user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {"chats": []},
+      "bodyMatcher": "keys_exist"
+    },
+    {
+      "name": "Get messages returns ok",
+      "method": "GET",
+      "path": "/?action=messages&chat_id=1&user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {"messages": []},
+      "bodyMatcher": "keys_exist"
+    },
+    {
+      "name": "Get notifications returns ok",
+      "method": "GET",
+      "path": "/?action=notifications&user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {"notifications": []},
+      "bodyMatcher": "keys_exist"
+    },
+    {
+      "name": "Get profile returns ok",
+      "method": "GET",
+      "path": "/?action=profile&user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {"user": {}},
+      "bodyMatcher": "keys_exist"
+    }
+  ]
+}

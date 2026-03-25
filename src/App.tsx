@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import Icon from "@/components/ui/icon";
+import { api } from "@/lib/api";
 
 const queryClient = new QueryClient();
 
@@ -26,7 +27,29 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
 
 function Messenger() {
   const [activeTab, setActiveTab] = useState<Tab>("chats");
-  const unreadNotifications = 3;
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [userName, setUserName] = useState("Алексей");
+  const [userAvatar, setUserAvatar] = useState("А");
+
+  useEffect(() => {
+    api.getNotifications().then((d) => {
+      const unread = (d.notifications || []).filter((n: { is_read: boolean }) => !n.is_read).length;
+      setUnreadNotifications(unread);
+    });
+    api.getProfile().then((d) => {
+      if (d.user) {
+        setUserName(d.user.display_name || "Алексей");
+        setUserAvatar(d.user.avatar_letter || "А");
+      }
+    });
+  }, []);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    if (tab === "notifications") {
+      setTimeout(() => setUnreadNotifications(0), 500);
+    }
+  };
 
   const renderPage = () => {
     switch (activeTab) {
@@ -60,7 +83,7 @@ function Messenger() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                 activeTab === tab.id
                   ? "bg-secondary text-foreground font-medium"
@@ -81,10 +104,10 @@ function Messenger() {
         <div className="px-3 py-3 border-t border-border">
           <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center text-sm font-semibold text-foreground shrink-0">
-              А
+              {userAvatar}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-medium leading-tight truncate">Алексей</div>
+              <div className="text-sm font-medium leading-tight truncate">{userName}</div>
               <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
                 В сети
@@ -105,7 +128,7 @@ function Messenger() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex-1 flex flex-col items-center py-2 gap-0.5 relative transition-colors ${
                 activeTab === tab.id ? "text-foreground" : "text-muted-foreground"
               }`}
