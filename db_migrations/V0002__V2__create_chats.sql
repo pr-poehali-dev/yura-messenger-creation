@@ -1,0 +1,6 @@
+CREATE TABLE chats (
+  id SERIAL PRIMARY KEY,
+  type VARCHAR(10) DEFAULT 'direct',
+  name VARCHAR(100),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
